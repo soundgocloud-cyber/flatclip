@@ -1,0 +1,52 @@
+name: Build FlatTop VST3
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: Windows
+          - os: macos-latest
+            name: macOS
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run DSP unit tests
+        shell: bash
+        run: |
+          if [ "${{ matrix.name }}" = "macOS" ]; then
+            c++ -std=c++17 -O2 -Isource tests/dsp_test.cpp -o dsp_test && ./dsp_test
+          else
+            echo "DSP tests run on the macOS job only"
+          fi
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build VST3
+        run: cmake --build build --config Release --target FlatTop_VST3 --parallel
+
+      - name: Collect VST3
+        shell: bash
+        run: |
+          mkdir -p dist
+          found=$(find build -type d -name "FlatTop.vst3" | head -n 1)
+          echo "Found: $found"
+          cp -R "$found" dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FlatTop-VST3-${{ matrix.name }}
+          path: dist
